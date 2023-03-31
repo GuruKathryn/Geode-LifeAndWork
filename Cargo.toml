@@ -1,0 +1,23 @@
+[package]
+name = "life_and_work"
+description = "A contract for making and endorsing claims."
+version = "0.1.0"
+authors = ["Dr. Amy Messegee <support@blockandpurpose.com>"]
+edition = "2021"
+
+[dependencies]
+ink = { version = "4.0", default-features = false }
+scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2.3", default-features = false, features = ["derive"], optional = true }
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info/std",
+]
+ink-as-dependency = []
