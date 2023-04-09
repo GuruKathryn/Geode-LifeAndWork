@@ -521,7 +521,7 @@ mod life_and_work {
 
         #[ink(message)]
         // Updates the storage map and emits an event to register the endorsement on chain 
-        pub fn endorse_claim(&mut self, owner: AccountId, claim_id: Hash
+        pub fn endorse_claim(&mut self, claim_id: Hash
         ) -> Result<(), Error> {
             let claim_hash = claim_id;
 
@@ -563,7 +563,7 @@ mod life_and_work {
 
                     // (2) emit an event to register the endorsement to the chain
                     Self::env().emit_event(ClaimEndorsed {
-                        claimant: owner,
+                        claimant: current_details.claimant,
                         claim_id: claim_hash,
                         endorser: Self::env().caller()
                     });
