@@ -189,8 +189,8 @@ mod life_and_work {
     // ERROR DEFINITIONS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     // Errors that can occur upon calling this contract...
-    #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
-    #[cfg_attr(feature = "std", derive(::scale_info::TypeInfo))]
+    #[derive(Debug, PartialEq, Eq)]
+    #[ink::scale_derive(Encode, Decode, TypeInfo)]
     pub enum Error {
         // Returned if the new claim already exists.
         DuplicateClaim,
@@ -216,7 +216,11 @@ mod life_and_work {
     // ACTUAL CONTRACT STORAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #[ink(storage)]
     pub struct ContractStorage {
-        claim_hashes: StorageVec<Hash>,
+        all_claims_expertise: StorageVec<Hash>,
+        all_claims_education: StorageVec<Hash>,
+        all_claims_work: StorageVec<Hash>,
+        all_claims_deeds: StorageVec<Hash>,
+        all_claims_ip: StorageVec<Hash>,
         claim_details: Mapping<Hash, Details>,
         account_claims_expertise: Mapping<AccountId, Claims>,
         account_claims_education: Mapping<AccountId, Claims>,
@@ -241,7 +245,11 @@ mod life_and_work {
         #[ink(constructor)]
         pub fn new() -> Self {
             Self {
-                claim_hashes: StorageVec::default(),
+                all_claims_expertise: StorageVec::default(),
+                all_claims_education: StorageVec::default(),
+                all_claims_work: StorageVec::default(),
+                all_claims_deeds: StorageVec::default(),
+                all_claims_ip: StorageVec::default(),
                 claim_details: Mapping::default(),
                 account_claims_expertise: Mapping::default(),
                 account_claims_education: Mapping::default(),
@@ -260,7 +268,7 @@ mod life_and_work {
         }
 
 
-        // MESSGE FUNCTIONS THAT ALTER CONTRACT STORAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        // MESSAGE FUNCTIONS THAT ALTER CONTRACT STORAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         
         #[ink(message)]
         // 🟢 0 EXPERTISE - Updates the storage map and emits an event to register the claim on chain
@@ -272,8 +280,8 @@ mod life_and_work {
             let caller = Self::env().caller();
             // get the current set of claims for this account
             let mut currentclaims = self.account_claims_expertise.get(caller).unwrap_or_default();
-            // if the caller has too many claims in this area send an error
-            if currentclaims.claims.len() > 490 {
+            // if the data is too big send an error
+            if keywords_or_description.len() > 600 || url_link_to_see_more.len() > 600 {
                 return Err(Error::DataTooLarge)
             }
             else {
@@ -309,16 +317,20 @@ mod life_and_work {
                     if self.claim_details.try_insert(claim_hash, &new_details).is_err() {
                         return Err(Error::DataTooLarge);
                     }
-
-                    // add this claim to the claim_hashes storage vector
-                    self.claim_hashes.push(&claim_hash);
                     
                     // add this claim hash to the set of claims for this account
+                    // if there are already 20 claims, kick out the oldest
+                    if currentclaims.claims.len() > 19 {
+                        currentclaims.claims.remove(0);
+                    }
                     // add the claim hash to the Claims.claims vector of claim_id hashes
                     currentclaims.claims.push(claim_hash);
 
                     // update the account_claims mapping
                     self.account_claims_expertise.insert(caller, &currentclaims);
+
+                    // add this event to the all_claims StorageVec
+                    self.all_claims_expertise.push(&claim_hash);
 
                     // Emit an event to register the claim to the chain
                     // make a clone of claim_meta 
@@ -330,7 +342,7 @@ mod life_and_work {
                     });
 
                     // REWARD PROGRAM ACTIONS... update the claim_counter 
-                    self.claim_counter = self.claim_counter.saturating_add(1);
+                    self.claim_counter = self.claim_counter.wrapping_add(1);
                     // IF conditions are met THEN payout a reward
                     let min = self.reward_amount.saturating_add(10);
                     let payout: Balance = self.reward_amount;
@@ -369,8 +381,8 @@ mod life_and_work {
             // get the current set of claims for this account
             let mut currentclaims = self.account_claims_workhistory.get(caller).unwrap_or_default();
 
-            // if they have too many claims in this cateogry, send an error
-            if currentclaims.claims.len() > 490 {
+            // if the data is too big send an error
+            if keywords_or_description.len() > 600 || url_link_to_see_more.len() > 600 {
                 return Err(Error::DataTooLarge)
             }
             else {
@@ -406,15 +418,19 @@ mod life_and_work {
                 if self.claim_details.try_insert(claim_hash, &new_details).is_err() {
                     return Err(Error::DataTooLarge);
                 }
-
-                // add this claim to the claim_hashes vector
-                self.claim_hashes.push(&claim_hash);
                 
                 // add this claim hash to the set of claims for this account
+                // if there are already 10 claims, kick out the oldest
+                if currentclaims.claims.len() > 9 {
+                    currentclaims.claims.remove(0);
+                }
                 // add the claim hash to the Claims.claims vector of claim_id hashes
                 currentclaims.claims.push(claim_hash);
                 // update the account_claims mapping
                 self.account_claims_workhistory.insert(caller, &currentclaims);
+
+                // add this event to the all_claims StorageVec
+                self.all_claims_work.push(&claim_hash);
 
                 // then emit an event to register the claim to the chain
                 // make a clone of claim_meta 
@@ -426,7 +442,7 @@ mod life_and_work {
                 });
 
                 // REWARD PROGRAM ACTIONS... update the claim_counter 
-                self.claim_counter = self.claim_counter.saturating_add(1);
+                self.claim_counter = self.claim_counter.wrapping_add(1);
                 // IF conditions are met THEN payout a reward
                 let min = self.reward_amount.saturating_add(10);
                 let payout: Balance = self.reward_amount;
@@ -464,8 +480,8 @@ mod life_and_work {
             // get the current set of claims for this account
             let mut currentclaims = self.account_claims_education.get(caller).unwrap_or_default();
 
-            // if they have too many claims in this cateogry, send an error
-            if currentclaims.claims.len() > 490 {
+            // if the data is too big send an error
+            if keywords_or_description.len() > 600 || url_link_to_see_more.len() > 600 {
                 return Err(Error::DataTooLarge)
             }
             else {
@@ -501,15 +517,19 @@ mod life_and_work {
                 if self.claim_details.try_insert(claim_hash, &new_details).is_err() {
                     return Err(Error::DataTooLarge);
                 }
-
-                // add this claim to the claim_hashes vector
-                self.claim_hashes.push(&claim_hash);
                 
                 // add this claim hash to the set of claims for this account
+                // if there are already 20 claims, kick out the oldest
+                if currentclaims.claims.len() > 19 {
+                    currentclaims.claims.remove(0);
+                }
                 // add the claim hash to the Claims.claims vector of claim_id hashes
                 currentclaims.claims.push(claim_hash);
                 // update the account_claims mapping
                 self.account_claims_education.insert(caller, &currentclaims);
+
+                // add this event to the all_claims StorageVec
+                self.all_claims_education.push(&claim_hash);
 
                 // then emit an event to register the claim to the chain
                 // make a clone of claim_meta 
@@ -521,7 +541,7 @@ mod life_and_work {
                 });
 
                 // REWARD PROGRAM ACTIONS... update the claim_counter 
-                self.claim_counter = self.claim_counter.saturating_add(1);
+                self.claim_counter = self.claim_counter.wrapping_add(1);
                 // IF conditions are met THEN payout a reward
                 let min = self.reward_amount.saturating_add(10);
                 let payout: Balance = self.reward_amount;
@@ -558,8 +578,8 @@ mod life_and_work {
             // get the current set of claims for this account
             let mut currentclaims = self.account_claims_gooddeeds.get(caller).unwrap_or_default();
 
-            // if they have too many claims in this cateogry, send an error
-            if currentclaims.claims.len() > 490 {
+            // if the data is too big send an error
+            if keywords_or_description.len() > 600 || url_link_to_see_more.len() > 600 {
                 return Err(Error::DataTooLarge)
             }
             else {
@@ -596,14 +616,18 @@ mod life_and_work {
                     return Err(Error::DataTooLarge);
                 }
 
-                // add this claim to the claim_hashes vector
-                self.claim_hashes.push(&claim_hash);
-                
                 // add this claim hash to the set of claims for this account
+                // if there are already 20 claims, kick out the oldest
+                if currentclaims.claims.len() > 19 {
+                    currentclaims.claims.remove(0);
+                }
                 // add the claim hash to the Claims.claims vector of claim_id hashes
                 currentclaims.claims.push(claim_hash);
                 // update the account_claims mapping
                 self.account_claims_gooddeeds.insert(caller, &currentclaims);
+
+                // add this event to the all_claims StorageVec
+                self.all_claims_deeds.push(&claim_hash);
 
                 // then emit an event to register the claim to the chain
                 // make a clone of claim_meta 
@@ -615,7 +639,7 @@ mod life_and_work {
                 });
 
                 // REWARD PROGRAM ACTIONS... update the claim_counter 
-                self.claim_counter = self.claim_counter.saturating_add(1);
+                self.claim_counter = self.claim_counter.wrapping_add(1);
                 // IF conditions are met THEN payout a reward
                 let min = self.reward_amount.saturating_add(10);
                 let payout: Balance = self.reward_amount;
@@ -652,8 +676,8 @@ mod life_and_work {
             // get the current set of claims for this account
             let mut currentclaims = self.account_claims_intellectualproperty.get(caller).unwrap_or_default();
 
-            // if they have too many claims in this cateogry, send an error
-            if currentclaims.claims.len() > 490 {
+            // if the data is too big send an error
+            if keywords_or_description.len() > 600 || url_link_to_see_more.len() > 600 {
                 return Err(Error::DataTooLarge)
             }
             else {
@@ -682,14 +706,18 @@ mod life_and_work {
                     return Err(Error::DataTooLarge);
                 }
 
-                // add this claim to the claim_hashes vector
-                self.claim_hashes.push(&claim_hash);
-                
                 // add this claim hash to the set of claims for this account
+                // if there are already 20 claims, kick out the oldest
+                if currentclaims.claims.len() > 19 {
+                    currentclaims.claims.remove(0);
+                }
                 // add the claim hash to the Claims.claims vector of claim_id hashes
                 currentclaims.claims.push(claim_hash);
                 // update the account_claims mapping
                 self.account_claims_intellectualproperty.insert(caller, &currentclaims);
+
+                // add this event to the all_claims StorageVec
+                self.all_claims_ip.push(&claim_hash);
 
                 // then emit an event to register the claim to the chain
                 // make a clone of claim_meta 
@@ -701,7 +729,7 @@ mod life_and_work {
                 });
 
                 // REWARD PROGRAM ACTIONS... update the claim_counter 
-                self.claim_counter = self.claim_counter.saturating_add(1);
+                self.claim_counter = self.claim_counter.wrapping_add(1);
                 // IF conditions are met THEN payout a reward
                 let min = self.reward_amount.saturating_add(10);
                 let payout: Balance = self.reward_amount;
@@ -732,7 +760,6 @@ mod life_and_work {
         // 🟢 5 ENDORSE - Updates the storage map and emits an event to register the endorsement on chain 
         pub fn endorse_claim(&mut self, claim_id: Hash
         ) -> Result<(), Error> {
-
             // Does the claimhash exist in the mappings? If TRUE then proceed...
             if self.claim_details.contains(claim_id) {
 
@@ -741,53 +768,56 @@ mod life_and_work {
                 // Get the list of endorsers for this claimID from the claim_details
                 let mut current_details = self.claim_details.get(claim_id).unwrap_or_default();
                 // Is the caller is already in the endorsers list for this claim?... 
-                if current_details.endorsers.contains(&caller) {
+                if current_details.endorsers.contains(&caller) || caller == current_details.claimant {
                     // If TRUE, return an Error... DuplicateEndorsement
-                    Err(Error::DuplicateEndorsement)
+                    return Err(Error::DuplicateEndorsement);
                 } 
                 else {
                     // If the caller is NOT already an endorser...
-                    // if there are less than 490 endorsers, add this endorser to the vector
-                    if current_details.endorsers.len() < 490 {
-
-                        current_details.endorsers.push(caller);
-                        // update the endorser count
-                        let new_endorser_count = current_details.endorser_count.saturating_add(1);
-
-                        // Update the details in storage for this claim
-                        let updated_details: Details = Details {
-                            claimtype: current_details.claimtype,
-                            claimant: current_details.claimant,
-                            claim: current_details.claim,
-                            claim_id: claim_id,
-                            endorser_count: new_endorser_count,
-                            link: current_details.link,
-                            show: current_details.show,
-                            endorsers: current_details.endorsers
-                        };
-
-                        // Update the claim_map
-                        if self.claim_details.try_insert(claim_id, &updated_details).is_err() {
-                            return Err(Error::DataTooLarge);
-                        }
+                    // if there are more than 20 endorsers, kick out the oldest
+                    if current_details.endorsers.len() > 19 {
+                        current_details.endorsers.remove(0);
                     }
 
-                    // (2) emit an event to register the endorsement to the chain
+                    // store the new endorser
+                    current_details.endorsers.push(caller);
+
+                    // update the endorser count
+                    let new_endorser_count = current_details.endorser_count.saturating_add(1);
+
+                    // Update the details in storage for this claim
+                    let updated_details: Details = Details {
+                        claimtype: current_details.claimtype,
+                        claimant: current_details.claimant,
+                        claim: current_details.claim,
+                        claim_id: claim_id,
+                        endorser_count: new_endorser_count,
+                        link: current_details.link,
+                        show: current_details.show,
+                        endorsers: current_details.endorsers
+                    };
+
+                    // Update the claim_map
+                    if self.claim_details.try_insert(claim_id, &updated_details).is_err() {
+                        return Err(Error::DataTooLarge);
+                    }
+
+                    // emit an event to register the endorsement to the chain
                     // the event will register regardless of if we no longer have room
                     // for this endorsement in the contract storage
                     Self::env().emit_event(ClaimEndorsed {
                         claimant: current_details.claimant,
                         claim_id: claim_id,
                         endorser: Self::env().caller()
-                    });
-                    Ok(())
+                    }); 
                 }
             }
             else {
                 // if the claimhash does not exist ...Error: Nonexistent Claim
-                Err(Error::NonexistentClaim)
+                return Err(Error::NonexistentClaim);
             }
 
+            Ok(())
         }
 
 
@@ -890,7 +920,7 @@ mod life_and_work {
             details
         }
 
-        // 🟢 9 GET ENDORSERS - for a given claim_id hash, get the ENDORSERS for that claim
+        // 🟢 9 GET ENDORSERS - for a given claim_id hash, get the 20 most recent ENDORSERS
         #[ink(message)]
         pub fn get_endorsers(&self, claim_id: Hash) -> Vec<AccountId> {
             let details = self.claim_details.get(claim_id).unwrap_or_default();
@@ -901,36 +931,111 @@ mod life_and_work {
         FOR A GIVEN KEYWORD OR KEY PHRASE, GET THE CLAIMS WHOSE CLAIM KEYWORDS
         INCLUDE THAT ENTIRE WORD OR PHRASE.
         Notes: You cannot iterate on a mapping BUT you can iterate on a VECTOR so we have 
-        an additional storage line that looks like claim_hashes: StorageVec<Hash> where we 
+        an additional storage lines that looks like claim_hashes: Vec<Hash> where we 
         keep a running vector of all the claim id hashes and iterate over that instead.
         We have to convert the u8 vectors to strings so that we can use the contains()
         function on the whole set of u8 items in the keywords rather than just one letter. 
         */
         #[ink(message)]
-        pub fn get_matching_claims(&self, keywords: Vec<u8>) -> Vec<Details> {
+        pub fn get_matching_claims(&self, 
+            claim_type: u8,
+            keywords1: Vec<u8>, 
+            keywords2: Vec<u8>, 
+            keywords3: Vec<u8>) -> Vec<Details> {
             // get a string for your keywords
-            let searchstring = String::from_utf8(keywords).unwrap_or_default();
+            let searchstring1 = String::from_utf8(keywords1).unwrap_or_default();
+            let searchstring2 = String::from_utf8(keywords2).unwrap_or_default();
+            let searchstring3 = String::from_utf8(keywords3).unwrap_or_default();
             // set up your results vector
             let mut matching_resume_items: Vec<Details> = Vec::new();
 
-            // iterate over the claim_hashes vector to find claims that match
-            if self.claim_hashes.len() > 0 {
-                for i in 0..self.claim_hashes.len() {
-                    let claimidhash = self.claim_hashes.get(i).unwrap_or_default();
-                    let resumeitem = self.claim_details.get(claimidhash).unwrap_or_default();
-                    let claimvecu8 = resumeitem.claim.clone();
-                    let claimstring = String::from_utf8(claimvecu8).unwrap_or_default();
+            // iterate over the all_claims storage vectors to find claims that match all keywords...
+            if claim_type == 1 {
+                if self.all_claims_work.len() > 0 {
+                    for i in 0..self.all_claims_work.len() {
+                        let claimidhash = self.all_claims_work.get(i).unwrap_or_default();
+                        let resumeitem = self.claim_details.get(claimidhash).unwrap_or_default();
+                        let claimvecu8 = resumeitem.claim.clone();
+                        let claimstring = String::from_utf8(claimvecu8).unwrap_or_default();
+                        // if ALL the keywords are in the claim keyword set...
+                        if claimstring.contains(&searchstring1) && claimstring.contains(&searchstring2)
+                        && claimstring.contains(&searchstring3) {
+                            // add the details to the results vector
+                            matching_resume_items.push(resumeitem);
+                        }
+                    }
+                }
+            }
 
-                    // if the keywords are in the claim keyword set...
-                    if claimstring.contains(&searchstring) {
-                        // add the details to the results vector
-                        matching_resume_items.push(resumeitem);
+            if claim_type == 2 {
+                if self.all_claims_education.len() > 0 {
+                    for i in 0..self.all_claims_education.len() {
+                        let claimidhash = self.all_claims_education.get(i).unwrap_or_default();
+                        let resumeitem = self.claim_details.get(claimidhash).unwrap_or_default();
+                        let claimvecu8 = resumeitem.claim.clone();
+                        let claimstring = String::from_utf8(claimvecu8).unwrap_or_default();
+                        // if ALL the keywords are in the claim keyword set...
+                        if claimstring.contains(&searchstring1) && claimstring.contains(&searchstring2)
+                        && claimstring.contains(&searchstring3) {
+                            // add the details to the results vector
+                            matching_resume_items.push(resumeitem);
+                        }
+                    }
+                }
+            }
+
+            if claim_type == 3 {
+                if self.all_claims_expertise.len() > 0 {
+                    for i in 0..self.all_claims_expertise.len() {
+                        let claimidhash = self.all_claims_expertise.get(i).unwrap_or_default();
+                        let resumeitem = self.claim_details.get(claimidhash).unwrap_or_default();
+                        let claimvecu8 = resumeitem.claim.clone();
+                        let claimstring = String::from_utf8(claimvecu8).unwrap_or_default();
+                        // if ALL the keywords are in the claim keyword set...
+                        if claimstring.contains(&searchstring1) && claimstring.contains(&searchstring2)
+                        && claimstring.contains(&searchstring3) {
+                            // add the details to the results vector
+                            matching_resume_items.push(resumeitem);
+                        }
+                    }
+                }
+            }
+
+            if claim_type == 4 {
+                if self.all_claims_deeds.len() > 0 {
+                    for i in 0..self.all_claims_deeds.len() {
+                        let claimidhash = self.all_claims_deeds.get(i).unwrap_or_default();
+                        let resumeitem = self.claim_details.get(claimidhash).unwrap_or_default();
+                        let claimvecu8 = resumeitem.claim.clone();
+                        let claimstring = String::from_utf8(claimvecu8).unwrap_or_default();
+                        // if ALL the keywords are in the claim keyword set...
+                        if claimstring.contains(&searchstring1) && claimstring.contains(&searchstring2)
+                        && claimstring.contains(&searchstring3) {
+                            // add the details to the results vector
+                            matching_resume_items.push(resumeitem);
+                        }
+                    }
+                }
+            }
+
+            if claim_type == 5 {
+                if self.all_claims_ip.len() > 0 {
+                    for i in 0..self.all_claims_ip.len() {
+                        let claimidhash = self.all_claims_ip.get(i).unwrap_or_default();
+                        let resumeitem = self.claim_details.get(claimidhash).unwrap_or_default();
+                        let claimvecu8 = resumeitem.claim.clone();
+                        let claimstring = String::from_utf8(claimvecu8).unwrap_or_default();
+                        // if ALL the keywords are in the claim keyword set...
+                        if claimstring.contains(&searchstring1) && claimstring.contains(&searchstring2)
+                        && claimstring.contains(&searchstring3) {
+                            // add the details to the results vector
+                            matching_resume_items.push(resumeitem);
+                        }
                     }
                 }
             }
 
             matching_resume_items
-
         }
 
 
